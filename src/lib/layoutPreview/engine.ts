@@ -2,6 +2,7 @@ import type { LNode, LayoutCtx, PositionedBox, Size, ContainerFn } from "./types
 import { parseDimen, resolveSize } from "./values";
 import { classify } from "./widgets";
 import { layoutFrame } from "./layout/frame";
+import { layoutLinear } from "./layout/linear";
 
 function padding(node: LNode, density: number, fontScale: number) {
   const d = (k: string) => { const x = parseDimen(node.attrs[k], density, fontScale); return x.mode === "fixed" ? x.px : 0; };
@@ -17,7 +18,7 @@ function padding(node: LNode, density: number, fontScale: number) {
 const CONTAINERS: Record<string, ContainerFn> = {
   frame: layoutFrame,
   stack: layoutFrame, // Phase1: Constraint/Relative 폴백
-  // linear/scroll 는 Task 8/9 에서 등록
+  linear: layoutLinear, // 추가
 };
 
 export function registerContainer(kind: string, fn: ContainerFn) { CONTAINERS[kind] = fn; }
