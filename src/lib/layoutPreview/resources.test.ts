@@ -34,3 +34,33 @@ describe("resolve helpers", () => {
     expect(resolveColor("@color/missing", res)).toBeNull();
   });
 });
+
+describe("drawable resolution", () => {
+  const files: Record<string, string> = {
+    "app/src/main/res/drawable/ic_logo.xml": `<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+      <path android:pathData="M0 0h24v24h-24z" android:fillColor="#3366FF"/></vector>`,
+    "app/src/main/res/drawable/bg_pill.xml": `<shape android:shape="rectangle">
+      <solid android:color="#FF8800"/><corners android:radius="12dp"/></shape>`,
+  };
+  const res = buildResourceTable(files, 2.75, 1);
+  it("resolves a vector drawable", () => {
+    const d = res.drawable("ic_logo");
+    expect(d?.kind).toBe("vector");
+    if (d?.kind === "vector") expect(d.svg).toContain("<svg");
+  });
+  it("resolves a shape drawable", () => {
+    const d = res.drawable("bg_pill");
+    expect(d?.kind).toBe("shape");
+    if (d?.kind === "shape") expect(d.css.borderRadius).toBe("12px");
+  });
+  it("returns null for unknown drawable", () => expect(res.drawable("nope")).toBeNull());
+});
+
+describe("theme ?attr colors", () => {
+  const res = buildResourceTable({}, 2.75, 1);
+  it("resolves ?attr/colorPrimary", () => expect(resolveColor("?attr/colorPrimary", res)).toBe("#6200EE"));
+  it("resolves ?colorSurface (no attr/ prefix)", () => expect(resolveColor("?colorSurface", res)).toBe("#FFFFFF"));
+  it("resolves ?android:attr/colorPrimaryDark", () => expect(resolveColor("?android:attr/colorPrimaryDark", res)).toBe("#3700B3"));
+  it("unknown attr → null", () => expect(resolveColor("?attr/nope", res)).toBeNull());
+});

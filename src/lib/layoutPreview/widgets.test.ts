@@ -6,6 +6,7 @@ const res: ResourceProvider = {
   string: (n) => (n === "app_name" ? "CafePOS" : null),
   color: () => null,
   dimen: () => null,
+  drawable: () => null,
 };
 const node = (tag: string, attrs: Record<string, string> = {}): LNode => ({ tag, attrs, children: [] });
 

@@ -37,6 +37,7 @@ export interface ResourceProvider {
   string(name: string): string | null; // 표시 문자열
   color(name: string): string | null;  // CSS 색 문자열
   dimen(name: string): number | null;   // dp
+  drawable(name: string): Drawable | null;   // ADD — Drawable defined in this file (Task 1)
 }
 
 export type Drawable =
