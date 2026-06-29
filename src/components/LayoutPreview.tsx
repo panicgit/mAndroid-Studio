@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useEffect, Component, type ReactNode, type CSSProperties } from "react";
 import { parseLayout } from "../lib/layoutPreview/parse";
 import { buildResourceTable } from "../lib/layoutPreview/resources";
+import { resolveColor } from "../lib/layoutPreview/resources";
 import { domMeasure } from "../lib/layoutPreview/measure";
 import { layout } from "../lib/layoutPreview/engine";
 import { classify, widgetVisual } from "../lib/layoutPreview/widgets";
@@ -19,9 +20,23 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
+function applyBackground(style: CSSProperties, node: PositionedBox["node"], res: ResourceProvider) {
+  const bg = node.attrs.background;
+  if (!bg) return;
+  const ref = /^@drawable\/(.+)$/.exec(bg);
+  if (ref) {
+    const d = res.drawable(ref[1]);
+    if (d && d.kind === "shape") Object.assign(style, d.css);
+    return;
+  }
+  const c = resolveColor(bg, res);
+  if (c) style.background = c;
+}
+
 function renderBox(b: PositionedBox, res: ResourceProvider, key: string): ReactNode {
   const style: CSSProperties = { position: "absolute", left: b.x, top: b.y, width: b.w, height: b.h, boxSizing: "border-box" };
   if (classify(b.node.tag) !== "leaf") {
+    applyBackground(style, b.node, res);
     return <div key={key} style={style}>{b.children.map((c, i) => renderBox(c, res, key + "." + i))}</div>;
   }
   const v = widgetVisual(b.node, res);
@@ -34,7 +49,15 @@ function renderBox(b: PositionedBox, res: ResourceProvider, key: string): ReactN
     justifyContent: v.bg ? "center" : "flex-start",
     borderRadius: v.bg ? 6 : 0, padding: v.text ? "0 6px" : 0, overflow: "hidden",
   } as CSSProperties);
-  const label = v.text || (v.placeholder ? b.node.tag.split(".").pop() : "");
+  if (v.bgDrawable && v.bgDrawable.kind === "shape") Object.assign(style, v.bgDrawable.css);
+  if (v.srcDrawable && v.srcDrawable.kind === "vector") {
+    Object.assign(style, {
+      backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(v.srcDrawable.svg)}")`,
+      backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain",
+    } as CSSProperties);
+  }
+  const showLabel = !(v.srcDrawable && v.srcDrawable.kind === "vector");
+  const label = showLabel ? (v.text || (v.placeholder ? b.node.tag.split(".").pop() : "")) : "";
   return <div key={key} style={style} title={b.node.tag}>{label}</div>;
 }
 
@@ -82,7 +105,7 @@ export default function LayoutPreview({ xml, files }: { xml: string; files: Reco
               transform: `scale(${zoom})`, transformOrigin: "top left",
               background: "var(--bg-editor)", overflow: "hidden",
             }}>
-              {displayBox && displayBox.children.map((c, i) => renderBox(c, res, "r" + i))}
+              {displayBox && renderBox(displayBox, res, "root")}
             </div>
           </div>
         </Boundary>

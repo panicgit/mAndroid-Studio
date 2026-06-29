@@ -45,3 +45,30 @@ describe("widgetVisual", () => {
     expect(v.bg).toBeTruthy();
   });
 });
+
+import type { Drawable } from "./types";
+const resWithDrawable: ResourceProvider = {
+  string: () => null,
+  color: () => null,
+  dimen: () => null,
+  drawable: (n): Drawable | null =>
+    n === "logo" ? { kind: "vector", svg: "<svg></svg>" }
+    : n === "pill" ? { kind: "shape", css: { background: "#FF8800" } }
+    : null,
+};
+
+describe("widgetVisual drawables", () => {
+  it("ImageView src=@drawable vector → srcDrawable, not placeholder", () => {
+    const v = widgetVisual(node("ImageView", { src: "@drawable/logo" }), resWithDrawable);
+    expect(v.srcDrawable?.kind).toBe("vector");
+    expect(v.placeholder).toBe(false);
+  });
+  it("background=@drawable shape → bgDrawable", () => {
+    const v = widgetVisual(node("TextView", { background: "@drawable/pill" }), resWithDrawable);
+    expect(v.bgDrawable?.kind).toBe("shape");
+  });
+  it("ImageView without resolvable src stays placeholder", () => {
+    const v = widgetVisual(node("ImageView", {}), resWithDrawable);
+    expect(v.placeholder).toBe(true);
+  });
+});

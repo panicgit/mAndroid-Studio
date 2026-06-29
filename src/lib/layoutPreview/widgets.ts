@@ -39,9 +39,16 @@ export function widgetVisual(node: LNode, res: ResourceProvider) {
   const textColor = resolveColor(node.attrs.textColor, res);
   const bg = resolveColor(node.attrs.background, res);
   const fontSizeSp = node.attrs.textSize ? parseFloat(node.attrs.textSize) || 14 : 14;
-  // 알려진 leaf 위젯이 아니면서 leaf로 분류된 커스텀/미지원 뷰 → 점선 플레이스홀더
   const isImage = k === "ImageView" || k === "ImageButton";
-  const placeholder = isImage || (!TEXTUAL.has(k) && !KNOWN_LEAF.has(k));
+
+  const srcRef = /^@drawable\/(.+)$/.exec(node.attrs.src || "");
+  const srcDrawable = isImage && srcRef ? res.drawable(srcRef[1]) : null;
+  const bgRef = /^@drawable\/(.+)$/.exec(node.attrs.background || "");
+  const bgDrawable = bgRef ? res.drawable(bgRef[1]) : null;
+
+  // 알려진 leaf 위젯이 아니면서 leaf로 분류된 커스텀/미지원 뷰 → 점선 플레이스홀더.
+  // 단, src drawable이 해석되면 ImageView는 더 이상 플레이스홀더가 아니다.
+  const placeholder = (isImage && !srcDrawable) || (!TEXTUAL.has(k) && !KNOWN_LEAF.has(k));
   const isButton = k === "Button" || k === "ImageButton";
   return {
     text,
@@ -50,5 +57,7 @@ export function widgetVisual(node: LNode, res: ResourceProvider) {
     border: isButton || k === "EditText" || k === "TextInputEditText",
     placeholder,
     fontSizeSp,
+    srcDrawable,
+    bgDrawable,
   };
 }
