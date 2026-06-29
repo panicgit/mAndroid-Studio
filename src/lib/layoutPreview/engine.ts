@@ -5,6 +5,7 @@ import { layoutFrame } from "./layout/frame";
 import { layoutLinear } from "./layout/linear";
 import { layoutScroll } from "./layout/scroll";
 import { layoutRelative } from "./layout/relative";
+import { layoutConstraint } from "./layout/constraint";
 
 function padding(node: LNode, density: number, fontScale: number) {
   const d = (k: string) => { const x = parseDimen(node.attrs[k], density, fontScale); return x.mode === "fixed" ? x.px : 0; };
@@ -23,6 +24,7 @@ const CONTAINERS: Record<string, ContainerFn> = {
   linear: layoutLinear, // 추가
   scroll: layoutScroll,
   relative: layoutRelative,
+  constraint: layoutConstraint,
 };
 
 export function registerContainer(kind: string, fn: ContainerFn) { CONTAINERS[kind] = fn; }
