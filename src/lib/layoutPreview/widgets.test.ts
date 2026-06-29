@@ -15,8 +15,8 @@ describe("classify", () => {
     expect(classify("FrameLayout")).toBe("frame");
     expect(classify("ScrollView")).toBe("scroll");
     expect(classify("NestedScrollView")).toBe("scroll");
-    expect(classify("androidx.constraintlayout.widget.ConstraintLayout")).toBe("stack");
-    expect(classify("RelativeLayout")).toBe("stack");
+    expect(classify("androidx.constraintlayout.widget.ConstraintLayout")).toBe("constraint");
+    expect(classify("RelativeLayout")).toBe("relative");
     expect(classify("TextView")).toBe("leaf");
     expect(classify("com.example.CustomView")).toBe("leaf");
   });
