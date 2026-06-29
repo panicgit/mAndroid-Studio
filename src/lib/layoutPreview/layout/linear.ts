@@ -17,9 +17,9 @@ export const layoutLinear: ContainerFn = (node, boxW, boxH, maxW, maxH, place) =
   const avail = vertical ? boxH ?? maxH : boxW ?? maxW;
   const leftover = Math.max(0, avail - usedMain);
   if (totalWeight > 0) {
-    children.forEach((c, i) => {
-      if (weights[i] <= 0) return;
-      const share = leftover * (weights[i] / totalWeight);
+    weights.forEach((w, i) => {
+      if (w <= 0) return;
+      const share = leftover * (w / totalWeight);
       if (vertical) boxes[i].h = share; else boxes[i].w = share;
     });
   }

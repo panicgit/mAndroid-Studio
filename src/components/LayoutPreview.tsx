@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, Component, type ReactNode, type CSSProperties } from "react";
+import { useMemo, useRef, useState, useEffect, Component, type ReactNode, type CSSProperties } from "react";
 import { parseLayout } from "../lib/layoutPreview/parse";
 import { buildResourceTable } from "../lib/layoutPreview/resources";
 import { domMeasure } from "../lib/layoutPreview/measure";
@@ -45,6 +45,8 @@ export default function LayoutPreview({ xml, files }: { xml: string; files: Reco
 
   const res = useMemo(() => buildResourceTable(files, profile.density, 1), [files, profile.density]);
 
+  const lastValidBox = useRef<PositionedBox | null>(null);
+
   const { box, error } = useMemo(() => {
     const parsed = parseLayout(debXml);
     if (!parsed.root || parsed.error) return { box: null as PositionedBox | null, error: parsed.error || "no root" };
@@ -55,6 +57,11 @@ export default function LayoutPreview({ xml, files }: { xml: string; files: Reco
       return { box: null as PositionedBox | null, error: e instanceof Error ? e.message : String(e) };
     }
   }, [debXml, res, profile]);
+
+  const displayBox = (() => {
+    if (box) { lastValidBox.current = box; return box; }
+    return lastValidBox.current;
+  })();
 
   return (
     <div className="lp-root">
@@ -75,7 +82,7 @@ export default function LayoutPreview({ xml, files }: { xml: string; files: Reco
               transform: `scale(${zoom})`, transformOrigin: "top left",
               background: "var(--bg-editor)", overflow: "hidden",
             }}>
-              {box && box.children.map((c, i) => renderBox(c, res, "r" + i))}
+              {displayBox && displayBox.children.map((c, i) => renderBox(c, res, "r" + i))}
             </div>
           </div>
         </Boundary>
