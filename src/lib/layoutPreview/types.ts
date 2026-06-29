@@ -39,6 +39,10 @@ export interface ResourceProvider {
   dimen(name: string): number | null;   // dp
 }
 
+export type Drawable =
+  | { kind: "vector"; svg: string }
+  | { kind: "shape"; css: Record<string, string> };
+
 // place()가 자식을 배치할 때 넘기는 콜백 (engine이 제공).
 export type Place = (child: LNode, maxW: number, maxH: number) => PositionedBox;
 
