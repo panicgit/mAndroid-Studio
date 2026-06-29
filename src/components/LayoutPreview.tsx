@@ -106,6 +106,10 @@ export default function LayoutPreview({ xml, files }: { xml: string; files: Reco
               background: "var(--bg-editor)", overflow: "hidden",
             }}>
               {displayBox && renderBox(displayBox, res, "root")}
+              <div style={{
+                position: "absolute", top: 0, left: 0, width: profile.wdp, height: profile.statusBar,
+                background: "rgba(0,0,0,.18)", pointerEvents: "none",
+              }} />
             </div>
           </div>
         </Boundary>

@@ -26,7 +26,8 @@ import * as CM from "./cmSearch";
     if (!/\/res\/layout[^/]*\/[^/]+\.xml$/.test(path)) return false;
     const m = /<\s*([A-Za-z][\w.]*)/.exec(content || "");
     const root = m ? m[1] : "";
-    return !["resources", "vector", "selector", "shape", "layer-list", "menu", "animated-vector"].includes(root);
+    return !["resources", "vector", "selector", "shape", "layer-list", "menu"].includes(root)
+      && !/^animated-/.test(root);
   }
 
   function FileDot({ path }) {
@@ -356,8 +357,13 @@ import * as CM from "./cmSearch";
     const scrollRef = useRef(null);
     const viewRef = useRef(null);
     const getView = useCallback(() => viewRef.current, []);
-    // 탭별 Code/Split/Design 모드 (레이아웃 XML에서만 의미).
-    const [viewModes, setViewModes] = useState({});
+    // 탭별 Code/Split/Design 모드 (레이아웃 XML에서만 의미). das.viewModes 맵으로 보존.
+    const [viewModes, setViewModes] = useState/* @type Record<string,string> */(() => {
+      try { return JSON.parse(localStorage.getItem("das.viewModes") || "{}"); } catch (_) { return {}; }
+    });
+    useEffect(() => {
+      try { localStorage.setItem("das.viewModes", JSON.stringify(viewModes)); } catch (_) {}
+    }, [viewModes]);
 
     // Stable handler so CodeMirror doesn't reconfigure its update listener every keystroke.
     const handleChange = useCallback((v) => onChangeContent && onChangeContent(activeTab, v), [onChangeContent, activeTab]);
