@@ -5,7 +5,11 @@ import { parseColor } from "./values";
 
 function parseXml(xml: string): Element | null {
   try {
-    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    // Auto-inject android namespace so fixtures without xmlns:android still parse.
+    const normalized = xml.includes("xmlns:android")
+      ? xml
+      : xml.replace(/^(<\w[^>]*)/, '$1 xmlns:android="http://schemas.android.com/apk/res/android"');
+    const doc = new DOMParser().parseFromString(normalized, "application/xml");
     if (doc.querySelector("parsererror")) return null;
     return doc.documentElement || null;
   } catch { return null; }
