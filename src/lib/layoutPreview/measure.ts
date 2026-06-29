@@ -1,5 +1,6 @@
 import type { Measure, ResourceProvider } from "./types";
 import { classify, tagName, widgetText } from "./widgets";
+import { resolveSp } from "./values";
 
 const DEFAULT_IMG = 100; // dp, src 미해석 ImageView 기본 박스
 
@@ -30,7 +31,7 @@ export function domMeasure(res: ResourceProvider, density: number, fontScale: nu
     if (k === "ImageView" || k === "ImageButton") return { w: DEFAULT_IMG, h: DEFAULT_IMG };
     if (k === "View" || k === "Space") return { w: 0, h: 0 };
     const text = widgetText(node, res);
-    const sizeSp = node.attrs.textSize ? parseFloat(node.attrs.textSize) || 14 : 14;
+    const sizeSp = resolveSp(node.attrs.textSize, res);
     const fontDp = sizeSp * fontScale;
     cx.font = `${fontDp}px sans-serif`; // dp 공간에서 측정
     if (!text) return { w: 0, h: Math.round(fontDp * 1.3) };

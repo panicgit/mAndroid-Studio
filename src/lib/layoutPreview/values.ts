@@ -1,4 +1,4 @@
-import type { Dimen, LayoutCtx } from "./types";
+import type { Dimen, LayoutCtx, ResourceProvider } from "./types";
 
 export function parseDimen(v: string | undefined, density: number, fontScale: number): Dimen {
   if (v == null || v === "") return { mode: "wrap", px: 0 };
@@ -68,6 +68,21 @@ export function resolveDimen(v: string | undefined, ctx: LayoutCtx): Dimen {
     }
   }
   return parseDimen(v, ctx.density, ctx.fontScale);
+}
+
+// android:textSize → sp number. Resolves @dimen/NAME via the resource table
+// (which already returns the value in the table's font scale) so
+// textSize="@dimen/text_body" no longer parseFloat→NaN→14. Literals like "16sp"
+// parse straight through; missing/unknown fall back to the platform 14sp default.
+export function resolveSp(v: string | undefined, res: ResourceProvider): number {
+  const DEFAULT = 14;
+  if (v == null || v === "") return DEFAULT;
+  const m = /^@dimen\/(.+)$/.exec(v.trim());
+  if (m) {
+    const dp = res.dimen(m[1]);
+    return dp != null ? dp : DEFAULT;
+  }
+  return parseFloat(v) || DEFAULT;
 }
 
 export function resolveSize(d: Dimen, avail: number, content: number): number {

@@ -1,5 +1,6 @@
 import type { LNode, ResourceProvider } from "./types";
 import { resolveString, resolveColor } from "./resources";
+import { resolveSp } from "./values";
 
 // 정규화된 위젯 이름: 마지막 "." 뒤(없으면 전체). 빈 문자열은 그대로 "".
 export function tagName(tag: string): string { const i = tag.lastIndexOf("."); return i >= 0 ? tag.slice(i + 1) : tag; }
@@ -39,7 +40,7 @@ export function widgetVisual(node: LNode, res: ResourceProvider) {
   const text = widgetText(node, res);
   const textColor = resolveColor(node.attrs.textColor, res);
   const bg = resolveColor(node.attrs.background, res);
-  const fontSizeSp = node.attrs.textSize ? parseFloat(node.attrs.textSize) || 14 : 14;
+  const fontSizeSp = resolveSp(node.attrs.textSize, res);
   const isImage = k === "ImageView" || k === "ImageButton";
 
   const srcRef = /^@drawable\/(.+)$/.exec(node.attrs.src || "");

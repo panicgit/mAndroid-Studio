@@ -62,6 +62,16 @@ describe("parseLayout — data-binding unwrap", () => {
   it("leaves a normal root untouched", () => {
     expect(parseLayout(SPLASH).root!.tag).toBe("FrameLayout");
   });
+
+  it("reports empty <layout> when only <data> is present", () => {
+    const ONLY_DATA = `<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android">
+  <data><variable name="vm" type="com.example.VM" /></data>
+</layout>`;
+    const { root, error } = parseLayout(ONLY_DATA);
+    expect(root).toBeNull();
+    expect(error).toBe("empty <layout>");
+  });
 });
 
 describe("parseLayout — <include> inlining", () => {
@@ -80,5 +90,23 @@ describe("parseLayout — <include> inlining", () => {
     const { root } = parseLayout(HOST, {});
     expect(root!.children[0].tag).toBe("include");
     expect(root!.children[0].attrs.layout).toBe("@layout/row_item");
+  });
+
+  it("stops a self-referential include at a placeholder (no stack overflow)", () => {
+    const SELF_HOST = `<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent" android:layout_height="match_parent">
+      <include layout="@layout/box"/>
+    </FrameLayout>`;
+    const BOX = `<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent" android:layout_height="wrap_content">
+      <include layout="@layout/box"/>
+    </LinearLayout>`;
+    let result: ReturnType<typeof parseLayout>;
+    expect(() => { result = parseLayout(SELF_HOST, { box: BOX }); }).not.toThrow();
+    expect(result!.error).toBeNull();
+    // First level inlines once; the nested re-include hits the cycle → placeholder.
+    expect(result!.root!.children[0].tag).toBe("LinearLayout");
+    expect(result!.root!.children[0].children[0].tag).toBe("include");
+    expect(result!.root!.children[0].children[0].attrs.layout).toBe("@layout/box");
   });
 });

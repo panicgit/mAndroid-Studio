@@ -9,7 +9,8 @@ import { buildAndroidView } from "../lib/androidView";
 import * as CM from "./cmSearch";
 import { listFiles } from "../ipc/fs";
 import { readFile } from "../ipc/file";
-import { buildResFiles } from "../lib/layoutPreview/projectResources";
+import { buildResFiles, extractRefs } from "../lib/layoutPreview/projectResources";
+import type { EditorView } from "@codemirror/view";
 /* DAS — file tree, device selector, editor tabs, code view, find/replace */
 
   const { useState, useEffect, useRef, useCallback, useMemo } = React;
@@ -357,7 +358,7 @@ import { buildResFiles } from "../lib/layoutPreview/projectResources";
     const { tabs, activeTab, onActivate, onClose, contents, wrap, highlightLine, errorLine,
       findMode, onCloseFind, onSetFindMode, dirty, onChangeContent, diffs, liveContents, projectRoot } = props;
     const scrollRef = useRef(null);
-    const viewRef = useRef(null);
+    const viewRef = useRef<EditorView | null>(null);
     const getView = useCallback(() => viewRef.current, []);
     // 탭별 Code/Split/Design 모드 (레이아웃 XML에서만 의미). das.viewModes 맵으로 보존.
     const [viewModes, setViewModes] = useState/* @type Record<string,string> */(() => {
@@ -403,21 +404,53 @@ import { buildResFiles } from "../lib/layoutPreview/projectResources";
     const viewMode = (layoutEligible && viewModes[realPath]) || "code";
     const setViewMode = (m) => setViewModes((s) => ({ ...s, [realPath]: m }));
 
-    const [previewFiles, setPreviewFiles] = useState({}); // { [absPath]: filesMap }
+    // Stable signature of the @drawable/@layout names the REAL content references.
+    // Empty ("") means "not loaded yet"; a loaded ref-less layout gets the "v1:"
+    // marker so it still differs from the unloaded state and still triggers a scan.
+    const refsSig = useMemo(() => {
+      if (!content) return "";
+      const r = extractRefs(content);
+      return "v1:" + [...r.drawables, ...r.layouts].sort().join("|");
+    }, [content]);
+
+    // Per-path cache of the resource scan, tagged with the ref signature it was
+    // built for so a ref change re-scans but unrelated edits reuse it.
+    const [previewFiles, setPreviewFiles] = useState({}); // { [realPath]: { sig, map } }
     useEffect(() => {
+      if (!content) return; // first render before readFile resolves — scan with REAL content only
       if (!projectRoot || !(layoutEligible && realPath.startsWith("/"))) return;
-      if (previewFiles[realPath]) return;
+      const hit = previewFiles[realPath];
+      if (hit && hit.sig === refsSig) return; // already loaded for this exact ref set
       let cancelled = false;
       const listFilesAbs = async (dir) => (await listFiles(dir)).map((p) =>
         p.startsWith("/") ? p : dir.replace(/\/$/, "") + "/" + p);
-      buildResFiles(realPath, content, { listFiles: listFilesAbs, readFile })
-        .then((map) => { if (!cancelled && map && Object.keys(map).length)
-          setPreviewFiles((m) => ({ ...m, [realPath]: map })); })
-        .catch(() => {});
-      return () => { cancelled = true; };
-    }, [layoutEligible, realPath, projectRoot]); // content intentionally omitted: ref scan is stable per file
-    const previewFilesMap =
-      (realPath.startsWith("/") && previewFiles[realPath]) || D.FILES;
+      // Debounce the IPC scan so a burst of edits that change refs only scans once.
+      const id = setTimeout(() => {
+        buildResFiles(realPath, content, { listFiles: listFilesAbs, readFile })
+          .then((map) => { if (!cancelled && map && Object.keys(map).length)
+            setPreviewFiles((m) => ({ ...m, [realPath]: { sig: refsSig, map } })); })
+          .catch(() => {});
+      }, 150);
+      return () => { cancelled = true; clearTimeout(id); };
+      // content omitted: refsSig captures every ref-set change; edits that don't
+      // change the referenced names reuse the cached scan (no re-list per keystroke).
+    }, [layoutEligible, realPath, projectRoot, refsSig]);
+
+    // Evict cached scans for paths no longer open so the map can't grow unbounded.
+    useEffect(() => {
+      const live = new Set(tabs.map((t) => (t.startsWith("diff:") ? t.slice(5) : t)));
+      setPreviewFiles((m) => {
+        let changed = false;
+        const next = {};
+        for (const k of Object.keys(m)) {
+          if (live.has(k)) next[k] = m[k]; else changed = true;
+        }
+        return changed ? next : m;
+      });
+    }, [tabs]);
+
+    const cachedEntry = realPath.startsWith("/") ? previewFiles[realPath] : null;
+    const previewFilesMap = (cachedEntry && cachedEntry.map) || D.FILES;
 
     return React.createElement("div", { className: "editor-area" },
       React.createElement("div", { className: "tabstrip-row" },

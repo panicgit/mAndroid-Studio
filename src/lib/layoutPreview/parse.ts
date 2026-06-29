@@ -42,12 +42,16 @@ const layoutRef = (v: string | undefined): string | null => {
 // Replace <include layout="@layout/x"> nodes with the parsed root of x (carrying the
 // include tag's layout_* attrs onto the substitute, as Android does). Missing layouts
 // become a labeled "include" placeholder leaf.
-function inlineIncludes(node: LNode, includes: Record<string, string>): LNode {
+function inlineIncludes(
+  node: LNode, includes: Record<string, string>, visited: Set<string>,
+): LNode {
   if (localName(node.tag) === "include") {
     const name = layoutRef(node.attrs.layout);
     const xml = name ? includes[name] : undefined;
-    if (name && xml) {
-      const parsed = parseLayout(xml, includes);
+    // `visited` is the include chain on THIS path — re-entering a name is a cycle,
+    // so leave the placeholder instead of recursing into a self/mutual include.
+    if (name && xml && !visited.has(name)) {
+      const parsed = parseLayout(xml, includes, new Set(visited).add(name));
       if (parsed.root) {
         const sub = parsed.root;
         // Android: layout_* on <include> override the included root's same attrs.
@@ -60,13 +64,14 @@ function inlineIncludes(node: LNode, includes: Record<string, string>): LNode {
     }
     return node; // placeholder leaf: tag "include", attrs.layout kept
   }
-  node.children = node.children.map((c) => inlineIncludes(c, includes));
+  node.children = node.children.map((c) => inlineIncludes(c, includes, visited));
   return node;
 }
 
 export function parseLayout(
   xml: string,
   includes?: Record<string, string>,
+  visited?: Set<string>,
 ): { root: LNode | null; error: string | null } {
   try {
     const doc = new DOMParser().parseFromString(xml, "application/xml");
@@ -82,7 +87,7 @@ export function parseLayout(
       rootEl = real;
     }
     const node = toLNode(rootEl);
-    return { root: inlineIncludes(node, includes ?? {}), error: null };
+    return { root: inlineIncludes(node, includes ?? {}, visited ?? new Set()), error: null };
   } catch (e) {
     return { root: null, error: e instanceof Error ? e.message : String(e) };
   }
