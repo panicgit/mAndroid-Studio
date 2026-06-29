@@ -5,7 +5,6 @@ import * as D from "../lib/data";
 import { DiffView } from "./panels";
 import CodeEditor from "./CodeEditor";
 import LayoutPreview from "./LayoutPreview";
-import { FILES } from "../lib/data";
 import { buildAndroidView } from "../lib/androidView";
 import * as CM from "./cmSearch";
 /* DAS — file tree, device selector, editor tabs, code view, find/replace */
@@ -431,13 +430,13 @@ import * as CM from "./cmSearch";
         isDiff
           ? React.createElement(DiffView, { path: realPath, diff: diffs && diffs[realPath] })
           : viewMode === "design"
-            ? React.createElement(LayoutPreview, { xml: content, files: FILES })
+            ? React.createElement(LayoutPreview, { xml: content, files: D.FILES })
             : viewMode === "split"
               ? React.createElement("div", { className: "split-pane" },
                   React.createElement("div", { className: "split-code" },
                     React.createElement(CodeEditor, { path: realPath, value: content, gotoLine: errorLine || highlightLine, onChange: handleChange, onView: (v) => { viewRef.current = v; } })),
                   React.createElement("div", { className: "split-preview" },
-                    React.createElement(LayoutPreview, { xml: content, files: FILES })))
+                    React.createElement(LayoutPreview, { xml: content, files: D.FILES })))
               : loading
                 ? React.createElement("div", { style: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--tx-3)", fontSize: 13, fontFamily: "var(--ui)" } }, "여는 중…")
                 : React.createElement(CodeEditor, { path: realPath, value: content, gotoLine: errorLine || highlightLine, onChange: handleChange, onView: (v) => { viewRef.current = v; } })));

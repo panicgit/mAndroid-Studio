@@ -5,7 +5,7 @@ import { parseLayout } from "../parse";
 import type { LayoutCtx, PositionedBox } from "../types";
 
 const ctx = (): LayoutCtx => ({
-  res: { string: () => null, color: () => null, dimen: () => null },
+  res: { string: () => null, color: () => null, dimen: () => null, drawable: () => null },
   measure: makeStubMeasure(8, 20), density: 2.75, fontScale: 1,
 });
 const child = (b: PositionedBox): PositionedBox => b.children[0];

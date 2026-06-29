@@ -1,5 +1,5 @@
-import type { ContainerFn, LNode, PositionedBox } from "../types";
-import { parseDimen } from "../values";
+import type { ContainerFn, PositionedBox } from "../types";
+import { nodeMargins } from "./spacing";
 
 const idRef = (v: string | undefined): string | null => {
   if (!v) return null;
@@ -18,17 +18,7 @@ export const layoutRelative: ContainerFn = (node, boxW, boxH, maxW, maxH, place,
 
   const boxes: PositionedBox[] = children.map((c) => place(c, maxW, maxH));
 
-  const margins = (c: LNode) => {
-    const d = (k: string) => { const x = parseDimen(c.attrs[k], ctx.density, ctx.fontScale); return x.mode === "fixed" ? x.px : 0; };
-    const all = d("layout_margin");
-    return {
-      l: c.attrs.layout_marginStart || c.attrs.layout_marginLeft ? (d("layout_marginStart") || d("layout_marginLeft")) : all,
-      t: c.attrs.layout_marginTop ? d("layout_marginTop") : all,
-      r: c.attrs.layout_marginEnd || c.attrs.layout_marginRight ? (d("layout_marginEnd") || d("layout_marginRight")) : all,
-      b: c.attrs.layout_marginBottom ? d("layout_marginBottom") : all,
-    };
-  };
-  const m = children.map(margins);
+  const m = children.map((c) => nodeMargins(c, ctx));
 
   const stateX = children.map(() => 0); // 0=todo 1=resolving 2=done
   const stateY = children.map(() => 0);

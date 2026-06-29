@@ -1,6 +1,5 @@
 // 벡터/shape drawable → SVG 문자열 / CSS 객체. 순수 함수. DOMParser로 XML 파싱.
 // (jsdom 환경에서 테스트, 런타임은 WebView DOMParser.)
-import type { Drawable } from "./types";
 import { parseColor } from "./values";
 
 function parseXml(xml: string): Element | null {
@@ -8,7 +7,7 @@ function parseXml(xml: string): Element | null {
     // Auto-inject android namespace so fixtures without xmlns:android still parse.
     const normalized = xml.includes("xmlns:android")
       ? xml
-      : xml.replace(/^(<\w[^>]*)/, '$1 xmlns:android="http://schemas.android.com/apk/res/android"');
+      : xml.replace(/^(<[A-Za-z][A-Za-z0-9_.-]*)/, '$1 xmlns:android="http://schemas.android.com/apk/res/android"');
     const doc = new DOMParser().parseFromString(normalized, "application/xml");
     if (doc.querySelector("parsererror")) return null;
     return doc.documentElement || null;
@@ -98,6 +97,3 @@ export function shapeToCss(xml: string): Record<string, string> | null {
   }
   return css;
 }
-
-// Re-export Drawable type for consumers
-export type { Drawable };

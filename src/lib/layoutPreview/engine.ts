@@ -1,22 +1,12 @@
 import type { LNode, LayoutCtx, PositionedBox, Size, ContainerFn } from "./types";
 import { parseDimen, resolveSize } from "./values";
 import { classify } from "./widgets";
+import { nodePadding } from "./layout/spacing";
 import { layoutFrame } from "./layout/frame";
 import { layoutLinear } from "./layout/linear";
 import { layoutScroll } from "./layout/scroll";
 import { layoutRelative } from "./layout/relative";
 import { layoutConstraint } from "./layout/constraint";
-
-function padding(node: LNode, density: number, fontScale: number) {
-  const d = (k: string) => { const x = parseDimen(node.attrs[k], density, fontScale); return x.mode === "fixed" ? x.px : 0; };
-  const all = d("padding");
-  return {
-    l: node.attrs.paddingStart || node.attrs.paddingLeft ? d("paddingStart") || d("paddingLeft") : all,
-    t: node.attrs.paddingTop ? d("paddingTop") : all,
-    r: node.attrs.paddingEnd || node.attrs.paddingRight ? d("paddingEnd") || d("paddingRight") : all,
-    b: node.attrs.paddingBottom ? d("paddingBottom") : all,
-  };
-}
 
 const CONTAINERS: Record<string, ContainerFn> = {
   frame: layoutFrame,
@@ -26,8 +16,6 @@ const CONTAINERS: Record<string, ContainerFn> = {
   relative: layoutRelative,
   constraint: layoutConstraint,
 };
-
-export function registerContainer(kind: string, fn: ContainerFn) { CONTAINERS[kind] = fn; }
 
 export function layout(root: LNode, ctx: LayoutCtx, viewport: Size): PositionedBox {
   const place = (node: LNode, maxW: number, maxH: number): PositionedBox => {
@@ -40,7 +28,7 @@ export function layout(root: LNode, ctx: LayoutCtx, viewport: Size): PositionedB
       return { node, x: 0, y: 0, w: resolveSize(lw, maxW, im.w), h: resolveSize(lh, maxH, im.h), children: [] };
     }
 
-    const pad = padding(node, ctx.density, ctx.fontScale);
+    const pad = nodePadding(node, ctx);
     const innerMaxW = resolveSize(lw, maxW, maxW) - pad.l - pad.r;
     const innerMaxH = resolveSize(lh, maxH, maxH) - pad.t - pad.b;
     const exactW = lw.mode === "match" || lw.mode === "fixed" ? innerMaxW : null;

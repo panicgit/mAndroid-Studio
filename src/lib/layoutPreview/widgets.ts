@@ -1,10 +1,11 @@
 import type { LNode, ResourceProvider } from "./types";
 import { resolveString, resolveColor } from "./resources";
 
-const last = (tag: string) => { const i = tag.lastIndexOf("."); return i >= 0 ? tag.slice(i + 1) : tag; };
+// 정규화된 위젯 이름: 마지막 "." 뒤(없으면 전체). 빈 문자열은 그대로 "".
+export function tagName(tag: string): string { const i = tag.lastIndexOf("."); return i >= 0 ? tag.slice(i + 1) : tag; }
 
 export function classify(tag: string): "linear" | "frame" | "scroll" | "relative" | "constraint" | "stack" | "leaf" {
-  switch (last(tag)) {
+  switch (tagName(tag)) {
     case "LinearLayout": return "linear";
     case "FrameLayout": return "frame";
     case "ScrollView":
@@ -24,7 +25,7 @@ const KNOWN_LEAF = new Set([
 ]);
 
 export function widgetText(node: LNode, res: ResourceProvider): string {
-  const k = last(node.tag);
+  const k = tagName(node.tag);
   if (k === "EditText" || k === "TextInputEditText") {
     if (node.attrs.text) return resolveString(node.attrs.text, res);
     return resolveString(node.attrs.hint, res);
@@ -34,7 +35,7 @@ export function widgetText(node: LNode, res: ResourceProvider): string {
 }
 
 export function widgetVisual(node: LNode, res: ResourceProvider) {
-  const k = last(node.tag);
+  const k = tagName(node.tag);
   const text = widgetText(node, res);
   const textColor = resolveColor(node.attrs.textColor, res);
   const bg = resolveColor(node.attrs.background, res);

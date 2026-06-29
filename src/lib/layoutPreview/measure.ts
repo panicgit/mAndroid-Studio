@@ -1,14 +1,13 @@
-import type { LNode, Measure, ResourceProvider } from "./types";
-import { classify, widgetText } from "./widgets";
+import type { Measure, ResourceProvider } from "./types";
+import { classify, tagName, widgetText } from "./widgets";
 
 const DEFAULT_IMG = 100; // dp, src 미해석 ImageView 기본 박스
-const tagOf = (node: LNode) => node.tag.split(".").pop()!;
 
 // 결정적 측정(테스트 + 순수 엔진). 텍스트만 모델링: 폭 = chars*charW, 줄바꿈으로 높이 증가.
 export function makeStubMeasure(charW = 7, lineH = 18): Measure {
   return (node, maxW) => {
     if (classify(node.tag) !== "leaf") return { w: 0, h: 0 }; // 컨테이너는 자식으로 결정
-    const k = tagOf(node);
+    const k = tagName(node.tag);
     if (k === "ImageView" || k === "ImageButton") return { w: DEFAULT_IMG, h: DEFAULT_IMG };
     if (k === "View" || k === "Space") return { w: 0, h: 0 };
     const text = node.attrs.text || node.attrs.hint || ""; // 테스트에선 @ref도 길이만 사용
@@ -27,7 +26,7 @@ export function domMeasure(res: ResourceProvider, density: number, fontScale: nu
   const cx = canvas.getContext("2d")!;
   return (node, maxW) => {
     if (classify(node.tag) !== "leaf") return { w: 0, h: 0 };
-    const k = tagOf(node);
+    const k = tagName(node.tag);
     if (k === "ImageView" || k === "ImageButton") return { w: DEFAULT_IMG, h: DEFAULT_IMG };
     if (k === "View" || k === "Space") return { w: 0, h: 0 };
     const text = widgetText(node, res);

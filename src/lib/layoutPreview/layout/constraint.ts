@@ -1,7 +1,7 @@
 import type { ContainerFn, LNode, PositionedBox } from "../types";
 import { parseDimen } from "../values";
-
-const lastName = (tag: string) => { const i = tag.lastIndexOf("."); return i >= 0 ? tag.slice(i + 1) : tag; };
+import { tagName } from "../widgets";
+import { nodeMargins } from "./spacing";
 const idRef = (v: string | undefined): string | null => {
   if (!v) return null;
   if (v === "parent") return "parent";
@@ -63,16 +63,7 @@ export const layoutConstraint: ContainerFn = (node, boxW, boxH, maxW, maxH, plac
   const boxes: PositionedBox[] = children.map((c) => place(c, maxW, maxH));
 
   const dpx = (c: LNode, k: string) => { const x = parseDimen(c.attrs[k], ctx.density, ctx.fontScale); return x.mode === "fixed" ? x.px : 0; };
-  const margins = (c: LNode) => {
-    const all = dpx(c, "layout_margin");
-    return {
-      l: c.attrs.layout_marginStart || c.attrs.layout_marginLeft ? (dpx(c, "layout_marginStart") || dpx(c, "layout_marginLeft")) : all,
-      t: c.attrs.layout_marginTop ? dpx(c, "layout_marginTop") : all,
-      r: c.attrs.layout_marginEnd || c.attrs.layout_marginRight ? (dpx(c, "layout_marginEnd") || dpx(c, "layout_marginRight")) : all,
-      b: c.attrs.layout_marginBottom ? dpx(c, "layout_marginBottom") : all,
-    };
-  };
-  const m = children.map(margins);
+  const m = children.map((c) => nodeMargins(c, ctx));
 
   const wMode = children.map((c) => parseDimen(c.attrs.layout_width, ctx.density, ctx.fontScale).mode);
   const hMode = children.map((c) => parseDimen(c.attrs.layout_height, ctx.density, ctx.fontScale).mode);
@@ -93,7 +84,7 @@ export const layoutConstraint: ContainerFn = (node, boxW, boxH, maxW, maxH, plac
     else if (hMode[i] === "constraint" && wMode[i] !== "constraint") natH[i] = natW[i] * (rh / rw);
   });
 
-  const isGuide = children.map((c) => lastName(c.tag) === "Guideline");
+  const isGuide = children.map((c) => tagName(c.tag) === "Guideline");
   const guideVertical = children.map((c) => (c.attrs.orientation || "vertical") === "vertical");
   const guideCoord = (i: number, extent: number) => {
     const a = children[i].attrs;
@@ -126,7 +117,8 @@ export const layoutConstraint: ContainerFn = (node, boxW, boxH, maxW, maxH, plac
     };
 
     function solveOne(i: number) {
-      if (st[i] >= 1) return; // done, or resolving -> cycle break (use provisional pos[i]=0)
+      if (st[i] === 2) return; // done
+      if (st[i] === 1) { console.warn("[layoutConstraint] cycle at", children[i]?.id); return; } // resolving -> cycle break (use provisional pos[i]=0)
       st[i] = 1;
       const lead = firstRef(i, cfg.leadG);
       const trail = firstRef(i, cfg.trailG);

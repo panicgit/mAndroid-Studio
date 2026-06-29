@@ -4,7 +4,7 @@ import { buildResourceTable } from "../lib/layoutPreview/resources";
 import { resolveColor } from "../lib/layoutPreview/resources";
 import { domMeasure } from "../lib/layoutPreview/measure";
 import { layout } from "../lib/layoutPreview/engine";
-import { classify, widgetVisual } from "../lib/layoutPreview/widgets";
+import { classify, tagName, widgetVisual } from "../lib/layoutPreview/widgets";
 import { DEVICE_PROFILES, DEFAULT_PROFILE } from "../lib/layoutPreview/deviceProfiles";
 import type { PositionedBox, ResourceProvider } from "../lib/layoutPreview/types";
 
@@ -57,7 +57,7 @@ function renderBox(b: PositionedBox, res: ResourceProvider, key: string): ReactN
     } as CSSProperties);
   }
   const showLabel = !(v.srcDrawable && v.srcDrawable.kind === "vector");
-  const label = showLabel ? (v.text || (v.placeholder ? b.node.tag.split(".").pop() : "")) : "";
+  const label = showLabel ? (v.text || (v.placeholder ? tagName(b.node.tag) : "")) : "";
   return <div key={key} style={style} title={b.node.tag}>{label}</div>;
 }
 
@@ -75,7 +75,7 @@ export default function LayoutPreview({ xml, files }: { xml: string; files: Reco
     if (!parsed.root || parsed.error) return { box: null as PositionedBox | null, error: parsed.error || "no root" };
     try {
       const ctx = { res, measure: domMeasure(res, profile.density, 1), density: profile.density, fontScale: 1 };
-      return { box: layout(parsed.root, ctx, { w: profile.wdp, h: profile.hdp }), error: null as string | null };
+      return { box: layout(parsed.root, ctx, { w: profile.wdp, h: profile.hdp - profile.statusBar }), error: null as string | null };
     } catch (e) {
       return { box: null as PositionedBox | null, error: e instanceof Error ? e.message : String(e) };
     }
@@ -105,11 +105,16 @@ export default function LayoutPreview({ xml, files }: { xml: string; files: Reco
               transform: `scale(${zoom})`, transformOrigin: "top left",
               background: "var(--bg-editor)", overflow: "hidden",
             }}>
-              {displayBox && renderBox(displayBox, res, "root")}
               <div style={{
                 position: "absolute", top: 0, left: 0, width: profile.wdp, height: profile.statusBar,
                 background: "rgba(0,0,0,.18)", pointerEvents: "none",
               }} />
+              <div style={{
+                position: "absolute", top: profile.statusBar, left: 0,
+                width: profile.wdp, height: profile.hdp - profile.statusBar, overflow: "hidden",
+              }}>
+                {displayBox && renderBox(displayBox, res, "root")}
+              </div>
             </div>
           </div>
         </Boundary>
