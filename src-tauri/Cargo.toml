@@ -1,6 +1,6 @@
 [package]
 name = "das"
-version = "0.1.0"
+version = "0.1.1"
 description = "DAS — Dumb Android Studio"
 edition = "2021"
 license = "MIT"
