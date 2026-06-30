@@ -1,5 +1,6 @@
 // 벡터/shape drawable → SVG 문자열 / CSS 객체. 순수 함수. DOMParser로 XML 파싱.
 // (jsdom 환경에서 테스트, 런타임은 WebView DOMParser.)
+import type { ResourceProvider } from "./types";
 import { parseColor } from "./values";
 
 function parseXml(xml: string): Element | null {
@@ -33,13 +34,27 @@ function firstChild(el: Element, tag: string): Element | null {
 }
 const xmlEsc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const col = (v: string | null, fallback: string): string => {
-  const c = v ? parseColor(v) : null;
+// "@color/NAME" → res.color(NAME); literal "#rrggbb" → parseColor. null if unresolved.
+const resolveColorRef = (v: string | null, res?: ResourceProvider): string | null => {
+  if (!v) return null;
+  const m = /^@color\/(.+)$/.exec(v.trim());
+  if (m) return res ? res.color(m[1]) : null;
+  return parseColor(v);
+};
+const col = (v: string | null, fallback: string, res?: ResourceProvider): string => {
+  const c = resolveColorRef(v, res);
   return (c || fallback).toLowerCase();
+};
+// "@dimen/NAME" → res.dimen(NAME)px; literal "Ndp" → "Npx". null if unresolved.
+const dimPx = (v: string | null, res?: ResourceProvider): string | null => {
+  if (!v) return null;
+  const m = /^@dimen\/(.+)$/.exec(v.trim());
+  if (m) { const dp = res ? res.dimen(m[1]) : null; return dp != null ? `${dp}px` : null; }
+  return num(v);
 };
 const num = (v: string | null) => `${parseFloat(v || "0") || 0}px`;
 
-export function vectorToSvg(xml: string): string | null {
+export function vectorToSvg(xml: string, res?: ResourceProvider): string | null {
   const root = parseXml(xml);
   if (!root || root.tagName.replace(/^.*:/, "") !== "vector") return null;
   const vw = attr(root, "viewportWidth") || "24";
@@ -52,7 +67,7 @@ export function vectorToSvg(xml: string): string | null {
     if (p.tagName.replace(/^.*:/, "") !== "path") continue;
     const d = attr(p, "pathData");
     if (!d) continue;
-    const fill = col(attr(p, "fillColor") || tint, "#000000");
+    const fill = col(attr(p, "fillColor") || tint, "#000000", res);
     const stroke = attr(p, "strokeColor");
     let a = `<path d="${xmlEsc(d)}" fill="${fill}"`;
     if (stroke && parseColor(stroke)) {
@@ -65,19 +80,23 @@ export function vectorToSvg(xml: string): string | null {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${vw} ${vh}">${paths.join("")}</svg>`;
 }
 
-export function shapeToCss(xml: string): Record<string, string> | null {
+export function shapeToCss(xml: string, res?: ResourceProvider): Record<string, string> | null {
   const root = parseXml(xml);
   if (!root || root.tagName.replace(/^.*:/, "") !== "shape") return null;
+  return shapeElementToCss(root, res);
+}
+
+function shapeElementToCss(root: Element, res?: ResourceProvider): Record<string, string> {
   const css: Record<string, string> = {};
   const kind = attr(root, "shape") || "rectangle";
 
   const solid = firstChild(root, "solid");
-  if (solid) { const c = parseColor(attr(solid, "color") || ""); if (c) css.background = c; }
+  if (solid) { const c = resolveColorRef(attr(solid, "color"), res); if (c) css.background = c; }
 
   const grad = firstChild(root, "gradient");
   if (grad) {
     const stops = [attr(grad, "startColor"), attr(grad, "centerColor"), attr(grad, "endColor")]
-      .map((v) => (v ? parseColor(v) : null))
+      .map((v) => resolveColorRef(v, res))
       .filter((c): c is string => !!c);
     if (stops.length >= 2) {
       const angle = parseFloat(attr(grad, "angle") || "0") || 0;
@@ -87,13 +106,39 @@ export function shapeToCss(xml: string): Record<string, string> | null {
   }
 
   const corners = firstChild(root, "corners");
-  if (corners) { const r = attr(corners, "radius"); if (r) css.borderRadius = num(r); }
+  if (corners) { const r = dimPx(attr(corners, "radius"), res); if (r) css.borderRadius = r; }
   if (kind === "oval") css.borderRadius = "50%";
 
   const stroke = firstChild(root, "stroke");
   if (stroke) {
-    const c = parseColor(attr(stroke, "color") || "");
-    if (c) css.border = `${num(attr(stroke, "width") || "1")} solid ${c}`;
+    const c = resolveColorRef(attr(stroke, "color"), res);
+    if (c) css.border = `${dimPx(attr(stroke, "width"), res) || "1px"} solid ${c}`;
   }
   return css;
+}
+
+// <selector> (state-list) → its DEFAULT item: the last <item> with no android:state_*
+// attr (catch-all), else the last item. Returns the item's @drawable ref name and/or
+// the CSS of an inline <shape> child. null if xml is not a selector.
+export function selectorDefault(
+  xml: string, res?: ResourceProvider,
+): { drawableRef: string | null; css: Record<string, string> | null } | null {
+  const root = parseXml(xml);
+  if (!root || root.tagName.replace(/^.*:/, "") !== "selector") return null;
+  const items = Array.from(root.children).filter(
+    (c) => c.tagName.replace(/^.*:/, "") === "item",
+  );
+  if (!items.length) return null;
+  const hasState = (el: Element) =>
+    Array.from(el.attributes).some((a) => {
+      const i = a.name.indexOf(":");
+      return (i >= 0 ? a.name.slice(i + 1) : a.name).startsWith("state_");
+    });
+  let chosen: Element | null = null;
+  for (const it of items) if (!hasState(it)) chosen = it; // last catch-all item
+  if (!chosen) chosen = items[items.length - 1];          // else last item
+  const drawAttr = attr(chosen, "drawable");
+  const m = drawAttr ? /^@drawable\/(.+)$/.exec(drawAttr.trim()) : null;
+  const shape = firstChild(chosen, "shape");
+  return { drawableRef: m ? m[1] : null, css: shape ? shapeElementToCss(shape, res) : null };
 }

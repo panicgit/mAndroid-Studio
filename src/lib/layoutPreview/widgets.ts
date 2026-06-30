@@ -48,6 +48,19 @@ export function widgetVisual(node: LNode, res: ResourceProvider) {
   const bgRef = /^@drawable\/(.+)$/.exec(node.attrs.background || "");
   const bgDrawable = bgRef ? res.drawable(bgRef[1]) : null;
 
+  // fontFamily (@font/pretendard_bold|_semibold|_medium|_regular) + textStyle="bold".
+  // "semibold" is checked before "bold" because it also contains the substring "bold".
+  const fontHint = `${node.attrs.fontFamily || ""} ${node.attrs.textStyle || ""}`.toLowerCase();
+  const fontWeight =
+    fontHint.includes("semibold") || fontHint.includes("semi_bold") ? 600
+    : fontHint.includes("bold") ? 700
+    : fontHint.includes("medium") ? 500
+    : 400;
+  // Real typeface: @font/NAME → the local font name ("pretendard_bold"). The actual
+  // @font-face (with the .ttf data-URL) is injected by LayoutPreview; here we only name it.
+  const fontRef = /^@font\/(.+)$/.exec(node.attrs.fontFamily || "");
+  const fontFamily = fontRef ? fontRef[1] : null;
+
   // 알려진 leaf 위젯이 아니면서 leaf로 분류된 커스텀/미지원 뷰 → 점선 플레이스홀더.
   // 단, src drawable이 해석되면 ImageView는 더 이상 플레이스홀더가 아니다.
   const placeholder = (isImage && !srcDrawable) || (!TEXTUAL.has(k) && !KNOWN_LEAF.has(k));
@@ -59,6 +72,8 @@ export function widgetVisual(node: LNode, res: ResourceProvider) {
     border: isButton || k === "EditText" || k === "TextInputEditText",
     placeholder,
     fontSizeSp,
+    fontWeight,
+    fontFamily,
     srcDrawable,
     bgDrawable,
   };

@@ -57,6 +57,26 @@ const resWithDrawable: ResourceProvider = {
     : null,
 };
 
+describe("widgetVisual fontWeight", () => {
+  it("fontFamily pretendard_bold → 700", () =>
+    expect(widgetVisual(node("TextView", { fontFamily: "@font/pretendard_bold" }), res).fontWeight).toBe(700));
+  it("fontFamily pretendard_semibold → 600", () =>
+    expect(widgetVisual(node("TextView", { fontFamily: "@font/pretendard_semibold" }), res).fontWeight).toBe(600));
+  it("fontFamily pretendard_medium → 500", () =>
+    expect(widgetVisual(node("TextView", { fontFamily: "@font/pretendard_medium" }), res).fontWeight).toBe(500));
+  it("textStyle bold → 700", () =>
+    expect(widgetVisual(node("TextView", { textStyle: "bold" }), res).fontWeight).toBe(700));
+  it("no font hints → 400", () =>
+    expect(widgetVisual(node("TextView", { text: "x" }), res).fontWeight).toBe(400));
+});
+
+describe("widgetVisual fontFamily", () => {
+  it("@font/NAME → local family name", () =>
+    expect(widgetVisual(node("TextView", { fontFamily: "@font/pretendard_bold" }), res).fontFamily).toBe("pretendard_bold"));
+  it("no fontFamily → null", () =>
+    expect(widgetVisual(node("TextView", { text: "x" }), res).fontFamily).toBeNull());
+});
+
 describe("widgetVisual drawables", () => {
   it("ImageView src=@drawable vector → srcDrawable, not placeholder", () => {
     const v = widgetVisual(node("ImageView", { src: "@drawable/logo" }), resWithDrawable);

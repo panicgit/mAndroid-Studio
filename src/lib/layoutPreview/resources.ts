@@ -1,15 +1,27 @@
 import type { ResourceProvider, Drawable } from "./types";
 import { parseColor, parseDimen } from "./values";
-import { vectorToSvg, shapeToCss } from "./drawables";
+import { vectorToSvg, shapeToCss, selectorDefault } from "./drawables";
 
 const RES_VALUES = /\/res\/values[^/]*\/[^/]+\.xml$/;
 const RES_DRAWABLE = /\/res\/drawable[^/]*\/([^/]+)\.xml$/;
+const RES_DRAWABLE_RASTER = /\/res\/drawable[^/]*\/([^/]+)\.(?:png|webp|jpg|jpeg)$/i;
 
 function collectDrawables(files: Record<string, string>): Map<string, string> {
   const m = new Map<string, string>();
   for (const [path, text] of Object.entries(files)) {
     const mm = RES_DRAWABLE.exec(path);
     if (mm && !m.has(mm[1])) m.set(mm[1], text);
+  }
+  return m;
+}
+
+// Raster drawables provided as data-URLs (the browser harness embeds PNG/WebP bytes).
+function collectRasters(files: Record<string, string>): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const [path, value] of Object.entries(files)) {
+    const mm = RES_DRAWABLE_RASTER.exec(path);
+    if (mm && typeof value === "string" && value.startsWith("data:image/") && !m.has(mm[1]))
+      m.set(mm[1], value);
   }
   return m;
 }
@@ -66,7 +78,33 @@ export function buildResourceTable(
 ): ResourceProvider {
   const { strings, colors, dimens } = collect(files);
   const drawables = collectDrawables(files);
-  return {
+  const rasters = collectRasters(files);
+
+  // Resolve a drawable by name. Prefers vector/shape/selector XML; falls back to a
+  // raster data-URL of the same name. Selectors resolve to their default item, which
+  // may reference another @drawable (recursed here with cycle/depth guards).
+  function resolveDrawable(name: string, depth: number, seen: Set<string>): Drawable | null {
+    if (depth > 8 || seen.has(name)) return null;
+    const text = drawables.get(name);
+    if (text != null) {
+      // Pass the provider so @color/@dimen refs inside the drawable resolve.
+      const sel = selectorDefault(text, provider);
+      if (sel) {
+        if (sel.drawableRef) { seen.add(name); return resolveDrawable(sel.drawableRef, depth + 1, seen); }
+        if (sel.css) return { kind: "shape", css: sel.css };
+        return null;
+      }
+      const svg = vectorToSvg(text, provider);
+      if (svg) return { kind: "vector", svg };
+      const css = shapeToCss(text, provider);
+      if (css) return { kind: "shape", css };
+    }
+    const raster = rasters.get(name);
+    if (raster) return { kind: "raster", dataUrl: raster };
+    return null;
+  }
+
+  const provider: ResourceProvider = {
     string: (name) => (strings.has(name) ? strings.get(name)! : null),
     color: (name) => {
       const raw = colors.get(name);
@@ -78,16 +116,9 @@ export function buildResourceTable(
       const d = parseDimen(raw, density, fontScale);
       return d.mode === "fixed" ? d.px : null;
     },
-    drawable: (name): Drawable | null => {
-      const text = drawables.get(name);
-      if (!text) return null;
-      const svg = vectorToSvg(text);
-      if (svg) return { kind: "vector", svg };
-      const css = shapeToCss(text);
-      if (css) return { kind: "shape", css };
-      return null;
-    },
+    drawable: (name): Drawable | null => resolveDrawable(name, 0, new Set()),
   };
+  return provider;
 }
 
 export function resolveString(v: string | undefined, res: ResourceProvider): string {
