@@ -380,13 +380,9 @@ import type { EditorView } from "@codemirror/view";
       }
     }, [highlightLine, errorLine, activeTab]);
 
-    if (!tabs.length) {
-      return React.createElement("div", { className: "editor-area" },
-        React.createElement("div", { className: "empty-editor" },
-          React.createElement(Icons.File, { size: 46, sw: 1.25 }),
-          React.createElement("div", { style: { fontSize: 14, color: "var(--tx-3)" } }, "열린 파일이 없습니다"),
-          React.createElement("div", { className: "kbd" }, "빠른 열기", React.createElement("kbd", null, "⌘"), React.createElement("kbd", null, "P"))));
-    }
+    // NOTE: all hooks (useMemo/useState/useEffect below) must run on EVERY render,
+    // so the empty-state early return lives AFTER them (see end of this block).
+    // activeTab is "" when no tab is open — the derivations below are safe with it.
     const isDiff = activeTab.startsWith("diff:");
     const realPath = isDiff ? activeTab.slice(5) : activeTab;
     // Prefer the live (ref) content so a tab switch seeds the editor with the
@@ -451,6 +447,16 @@ import type { EditorView } from "@codemirror/view";
 
     const cachedEntry = realPath.startsWith("/") ? previewFiles[realPath] : null;
     const previewFilesMap = (cachedEntry && cachedEntry.map) || D.FILES;
+
+    // Empty-state early return — AFTER all hooks above so hook order is stable
+    // whether or not a tab is open (Rules of Hooks).
+    if (!tabs.length) {
+      return React.createElement("div", { className: "editor-area" },
+        React.createElement("div", { className: "empty-editor" },
+          React.createElement(Icons.File, { size: 46, sw: 1.25 }),
+          React.createElement("div", { style: { fontSize: 14, color: "var(--tx-3)" } }, "열린 파일이 없습니다"),
+          React.createElement("div", { className: "kbd" }, "빠른 열기", React.createElement("kbd", null, "⌘"), React.createElement("kbd", null, "P"))));
+    }
 
     return React.createElement("div", { className: "editor-area" },
       React.createElement("div", { className: "tabstrip-row" },
