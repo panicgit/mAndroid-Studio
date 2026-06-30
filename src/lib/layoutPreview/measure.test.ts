@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { makeStubMeasure } from "./measure";
+import { makeStubMeasure, DEFAULT_IMG } from "./measure";
 import type { LNode } from "./types";
 
 const n = (tag: string, attrs: Record<string, string> = {}): LNode => ({ tag, attrs, children: [] });
@@ -15,6 +15,11 @@ describe("makeStubMeasure", () => {
     const s = m(n("ImageView", {}), 1000, 1000);
     expect(s.w).toBeGreaterThan(0);
     expect(s.h).toBeGreaterThan(0);
+  });
+  it("uses an icon-sized (24dp) default for an unresolved ImageView", () => {
+    expect(DEFAULT_IMG).toBe(24);
+    const s = m(n("ImageView", {}), 1000, 1000);
+    expect(s).toEqual({ w: 24, h: 24 });
   });
   it("never exceeds the available width (wraps height)", () => {
     const s = m(n("TextView", { text: "abcdefghij" }), 40, 1000); // 80dp wanted, 40 cap

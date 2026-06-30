@@ -1,5 +1,5 @@
 import type { LNode, LayoutCtx, PositionedBox, Size, ContainerFn } from "./types";
-import { resolveDimen, resolveSize } from "./values";
+import { resolveDimen, resolveSize, resolveVisibility } from "./values";
 import { classify } from "./widgets";
 import { nodePadding } from "./layout/spacing";
 import { layoutFrame } from "./layout/frame";
@@ -22,6 +22,8 @@ export function layout(root: LNode, ctx: LayoutCtx, viewport: Size): PositionedB
     const lw = resolveDimen(node.attrs.layout_width, ctx);
     const lh = resolveDimen(node.attrs.layout_height, ctx);
     const kind = classify(node.tag);
+
+    if (resolveVisibility(node) === "gone") return { node, x: 0, y: 0, w: 0, h: 0, children: [] };
 
     if (kind === "leaf") {
       const im = ctx.measure(node, maxW, maxH);

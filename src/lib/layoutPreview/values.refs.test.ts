@@ -10,10 +10,10 @@ const ctx = (dimen: (n: string) => number | null): LayoutCtx => ({
 });
 
 describe("resolveDimen", () => {
-  const c = ctx((n) => (n === "d_800" ? 8 : n === "d_2000" ? 20 : null));
+  const c = ctx((n) => (n === "dp_8" ? 8 : n === "dp_20" ? 20 : null));
   it("resolves @dimen/NAME to a fixed dp", () => {
-    expect(resolveDimen("@dimen/d_800", c)).toEqual({ mode: "fixed", px: 8 });
-    expect(resolveDimen("@dimen/d_2000", c)).toEqual({ mode: "fixed", px: 20 });
+    expect(resolveDimen("@dimen/dp_8", c)).toEqual({ mode: "fixed", px: 8 });
+    expect(resolveDimen("@dimen/dp_20", c)).toEqual({ mode: "fixed", px: 20 });
   });
   it("unknown @dimen falls back to wrap", () => {
     expect(resolveDimen("@dimen/nope", c)).toEqual({ mode: "wrap", px: 0 });
