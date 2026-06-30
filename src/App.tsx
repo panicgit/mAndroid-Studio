@@ -527,7 +527,7 @@ import { detectEnv } from "./ipc/env";
           React.createElement(ED.Editor, {
             tabs, activeTab, onActivate: setActiveTab, onClose: closeTab, contents, dirty, liveContents,
             wrap: t.wrap, highlightLine, errorLine, findMode, onCloseFind: closeFind, onSetFindMode: setFindMode,
-            onChangeContent, onSave: saveActive, diffs,
+            onChangeContent, onSave: saveActive, diffs, projectRoot,
           }),
           // BOTTOM PANEL
           bottomOpen && React.createElement("div", { className: "bottompanel" },

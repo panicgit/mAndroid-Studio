@@ -4,8 +4,13 @@ import * as E from "../lib/engine";
 import * as D from "../lib/data";
 import { DiffView } from "./panels";
 import CodeEditor from "./CodeEditor";
+import LayoutPreview from "./LayoutPreview";
 import { buildAndroidView } from "../lib/androidView";
 import * as CM from "./cmSearch";
+import { listFiles } from "../ipc/fs";
+import { readFile } from "../ipc/file";
+import { buildResFiles, extractRefs } from "../lib/layoutPreview/projectResources";
+import type { EditorView } from "@codemirror/view";
 /* DAS — file tree, device selector, editor tabs, code view, find/replace */
 
   const { useState, useEffect, useRef, useCallback, useMemo } = React;
@@ -19,6 +24,15 @@ import * as CM from "./cmSearch";
     if (/\.properties$/.test(path)) return "#8a929e";
     return "#6b7280";
   }
+  // res/layout 하위의 View 기반 XML인지 — Design 토글 노출 조건.
+  function isLayoutXml(path, content) {
+    if (!/\/res\/layout[^/]*\/[^/]+\.xml$/.test(path)) return false;
+    const m = /<\s*([A-Za-z][\w.]*)/.exec(content || "");
+    const root = m ? m[1] : "";
+    return !["resources", "vector", "selector", "shape", "layer-list", "menu"].includes(root)
+      && !/^animated-/.test(root);
+  }
+
   function FileDot({ path }) {
     return React.createElement("span", { className: "ic", style: { width: 16, justifyContent: "center" } },
       React.createElement("span", { style: { width: 8, height: 8, borderRadius: 2, background: extColor(path) } }));
@@ -342,10 +356,17 @@ import * as CM from "./cmSearch";
   // ===================== EDITOR (tabs + body) =====================
   function Editor(props) {
     const { tabs, activeTab, onActivate, onClose, contents, wrap, highlightLine, errorLine,
-      findMode, onCloseFind, onSetFindMode, dirty, onChangeContent, diffs, liveContents } = props;
+      findMode, onCloseFind, onSetFindMode, dirty, onChangeContent, diffs, liveContents, projectRoot } = props;
     const scrollRef = useRef(null);
-    const viewRef = useRef(null);
+    const viewRef = useRef<EditorView | null>(null);
     const getView = useCallback(() => viewRef.current, []);
+    // 탭별 Code/Split/Design 모드 (레이아웃 XML에서만 의미). das.viewModes 맵으로 보존.
+    const [viewModes, setViewModes] = useState/* @type Record<string,string> */(() => {
+      try { return JSON.parse(localStorage.getItem("das.viewModes") || "{}"); } catch (_) { return {}; }
+    });
+    useEffect(() => {
+      try { localStorage.setItem("das.viewModes", JSON.stringify(viewModes)); } catch (_) {}
+    }, [viewModes]);
 
     // Stable handler so CodeMirror doesn't reconfigure its update listener every keystroke.
     const handleChange = useCallback((v) => onChangeContent && onChangeContent(activeTab, v), [onChangeContent, activeTab]);
@@ -379,20 +400,79 @@ import * as CM from "./cmSearch";
     // re-parse, no empty-editor flash) the moment the read resolves.
     const loading = !isDiff && realPath.startsWith("/") && liveVal == null && contents[activeTab] == null;
     const crumbs = realPath.split("/");
+    const layoutEligible = isLayoutXml(realPath, content);
+    const viewMode = (layoutEligible && viewModes[realPath]) || "code";
+    const setViewMode = (m) => setViewModes((s) => ({ ...s, [realPath]: m }));
+
+    // Stable signature of the @drawable/@layout names the REAL content references.
+    // Empty ("") means "not loaded yet"; a loaded ref-less layout gets the "v1:"
+    // marker so it still differs from the unloaded state and still triggers a scan.
+    const refsSig = useMemo(() => {
+      if (!content) return "";
+      const r = extractRefs(content);
+      return "v1:" + [...r.drawables, ...r.layouts].sort().join("|");
+    }, [content]);
+
+    // Per-path cache of the resource scan, tagged with the ref signature it was
+    // built for so a ref change re-scans but unrelated edits reuse it.
+    const [previewFiles, setPreviewFiles] = useState({}); // { [realPath]: { sig, map } }
+    useEffect(() => {
+      if (!content) return; // first render before readFile resolves — scan with REAL content only
+      if (!projectRoot || !(layoutEligible && realPath.startsWith("/"))) return;
+      const hit = previewFiles[realPath];
+      if (hit && hit.sig === refsSig) return; // already loaded for this exact ref set
+      let cancelled = false;
+      const listFilesAbs = async (dir) => (await listFiles(dir)).map((p) =>
+        p.startsWith("/") ? p : dir.replace(/\/$/, "") + "/" + p);
+      // Debounce the IPC scan so a burst of edits that change refs only scans once.
+      const id = setTimeout(() => {
+        buildResFiles(realPath, content, { listFiles: listFilesAbs, readFile })
+          .then((map) => { if (!cancelled && map && Object.keys(map).length)
+            setPreviewFiles((m) => ({ ...m, [realPath]: { sig: refsSig, map } })); })
+          .catch(() => {});
+      }, 150);
+      return () => { cancelled = true; clearTimeout(id); };
+      // content omitted: refsSig captures every ref-set change; edits that don't
+      // change the referenced names reuse the cached scan (no re-list per keystroke).
+    }, [layoutEligible, realPath, projectRoot, refsSig]);
+
+    // Evict cached scans for paths no longer open so the map can't grow unbounded.
+    useEffect(() => {
+      const live = new Set(tabs.map((t) => (t.startsWith("diff:") ? t.slice(5) : t)));
+      setPreviewFiles((m) => {
+        let changed = false;
+        const next = {};
+        for (const k of Object.keys(m)) {
+          if (live.has(k)) next[k] = m[k]; else changed = true;
+        }
+        return changed ? next : m;
+      });
+    }, [tabs]);
+
+    const cachedEntry = realPath.startsWith("/") ? previewFiles[realPath] : null;
+    const previewFilesMap = (cachedEntry && cachedEntry.map) || D.FILES;
 
     return React.createElement("div", { className: "editor-area" },
-      React.createElement("div", { className: "tabstrip scroll" },
-        tabs.map((t) => {
-          const td = t.startsWith("diff:");
-          const rp = td ? t.slice(5) : t;
-          const name = rp.split("/").pop() + (td ? " \u27f7" : "");
-          return React.createElement("div", { key: t, className: "tab" + (t === activeTab ? " active" : ""), onClick: () => onActivate(t) },
-            React.createElement(FileDot, { path: rp }),
-            React.createElement("span", { className: "lbl" }, name),
-            dirty[t]
-              ? React.createElement("span", { className: "cls", onClick: (e) => { e.stopPropagation(); onClose(t); } }, React.createElement("span", { className: "dirty" }))
-              : React.createElement("span", { className: "cls", onClick: (e) => { e.stopPropagation(); onClose(t); } }, React.createElement(Icons.X, { size: 13 })));
-        })),
+      React.createElement("div", { className: "tabstrip-row" },
+        React.createElement("div", { className: "tabstrip scroll" },
+          tabs.map((t) => {
+            const td = t.startsWith("diff:");
+            const rp = td ? t.slice(5) : t;
+            const name = rp.split("/").pop() + (td ? " \u27f7" : "");
+            return React.createElement("div", { key: t, className: "tab" + (t === activeTab ? " active" : ""), onClick: () => onActivate(t) },
+              React.createElement(FileDot, { path: rp }),
+              React.createElement("span", { className: "lbl" }, name),
+              dirty[t]
+                ? React.createElement("span", { className: "cls", onClick: (e) => { e.stopPropagation(); onClose(t); } }, React.createElement("span", { className: "dirty" }))
+                : React.createElement("span", { className: "cls", onClick: (e) => { e.stopPropagation(); onClose(t); } }, React.createElement(Icons.X, { size: 13 })));
+          })),
+        layoutEligible && React.createElement("div", { className: "view-toggle" },
+          ["code", "split", "design"].map((m) =>
+            React.createElement("button", {
+              key: m,
+              className: "vt-btn" + (viewMode === m ? " on" : ""),
+              onClick: () => setViewMode(m),
+            }, m === "code" ? "Code" : m === "split" ? "Split" : "Design")))),
       findMode && !isDiff && React.createElement(EditorSearchBar, { getView, mode: findMode, onClose: onCloseFind, onSetMode: onSetFindMode }),
       React.createElement("div", { className: "editor-scroll scroll" + (wrap ? " wrap" : ""), ref: scrollRef },
         React.createElement("div", { className: "breadcrumb" },
@@ -401,9 +481,17 @@ import * as CM from "./cmSearch";
             React.createElement("span", { style: i === crumbs.length - 1 ? { color: "var(--tx-1)" } : null }, c)))),
         isDiff
           ? React.createElement(DiffView, { path: realPath, diff: diffs && diffs[realPath] })
-          : loading
-            ? React.createElement("div", { style: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--tx-3)", fontSize: 13, fontFamily: "var(--ui)" } }, "여는 중…")
-            : React.createElement(CodeEditor, { path: realPath, value: content, gotoLine: errorLine || highlightLine, onChange: handleChange, onView: (v) => { viewRef.current = v; } })));
+          : viewMode === "design"
+            ? React.createElement(LayoutPreview, { xml: content, files: previewFilesMap })
+            : viewMode === "split"
+              ? React.createElement("div", { className: "split-pane" },
+                  React.createElement("div", { className: "split-code" },
+                    React.createElement(CodeEditor, { path: realPath, value: content, gotoLine: errorLine || highlightLine, onChange: handleChange, onView: (v) => { viewRef.current = v; } })),
+                  React.createElement("div", { className: "split-preview" },
+                    React.createElement(LayoutPreview, { xml: content, files: previewFilesMap })))
+              : loading
+                ? React.createElement("div", { style: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--tx-3)", fontSize: 13, fontFamily: "var(--ui)" } }, "여는 중…")
+                : React.createElement(CodeEditor, { path: realPath, value: content, gotoLine: errorLine || highlightLine, onChange: handleChange, onView: (v) => { viewRef.current = v; } })));
   }
 
   // Memoize the heavy/stable subtrees so a parent re-render on every keystroke

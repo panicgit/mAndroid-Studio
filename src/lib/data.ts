@@ -265,6 +265,20 @@ rootProject.name = "CafePOS"
 include(":app")
 `;
 
+  K["app/src/main/res/values/colors.xml"] = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_blue">#1E40AF</color>
+</resources>
+`;
+
+  K["app/src/main/res/drawable/ic_logo_mark.xml"] = `<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp" android:height="160dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M12 2L2 7l10 5 10-5z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M2 17l10 5 10-5M2 12l10 5 10-5" android:strokeColor="#FFFFFF" android:strokeWidth="1.5"/>
+</vector>
+`;
+
   K["app/src/main/res/values/strings.xml"] = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Cafe POS</string>
