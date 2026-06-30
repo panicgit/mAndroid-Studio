@@ -26,6 +26,7 @@ pub fn run() {
             fs_tree::read_tree,
             fs_tree::list_files,
             fs_tree::read_file,
+            fs_tree::read_file_base64,
             fs_tree::write_file,
             search::search_content,
             search::find_in_path,
