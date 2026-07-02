@@ -2,7 +2,7 @@ import type { Measure, ResourceProvider } from "./types";
 import { classify, tagName, widgetText } from "./widgets";
 import { resolveSp } from "./values";
 
-const DEFAULT_IMG = 100; // dp, src 미해석 ImageView 기본 박스
+export const DEFAULT_IMG = 24; // dp, src 미해석 ImageView 기본 박스(아이콘 크기)
 
 // 결정적 측정(테스트 + 순수 엔진). 텍스트만 모델링: 폭 = chars*charW, 줄바꿈으로 높이 증가.
 export function makeStubMeasure(charW = 7, lineH = 18): Measure {

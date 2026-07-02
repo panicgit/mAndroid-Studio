@@ -8,7 +8,7 @@ import LayoutPreview from "./LayoutPreview";
 import { buildAndroidView } from "../lib/androidView";
 import * as CM from "./cmSearch";
 import { listFiles } from "../ipc/fs";
-import { readFile } from "../ipc/file";
+import { readFile, readFileBase64 } from "../ipc/file";
 import { buildResFiles, extractRefs } from "../lib/layoutPreview/projectResources";
 import type { EditorView } from "@codemirror/view";
 /* DAS — file tree, device selector, editor tabs, code view, find/replace */
@@ -406,7 +406,7 @@ import type { EditorView } from "@codemirror/view";
     const refsSig = useMemo(() => {
       if (!content) return "";
       const r = extractRefs(content);
-      return "v1:" + [...r.drawables, ...r.layouts].sort().join("|");
+      return "v1:" + [...r.drawables, ...r.layouts, ...r.fonts].sort().join("|");
     }, [content]);
 
     // Per-path cache of the resource scan, tagged with the ref signature it was
@@ -422,7 +422,7 @@ import type { EditorView } from "@codemirror/view";
         p.startsWith("/") ? p : dir.replace(/\/$/, "") + "/" + p);
       // Debounce the IPC scan so a burst of edits that change refs only scans once.
       const id = setTimeout(() => {
-        buildResFiles(realPath, content, { listFiles: listFilesAbs, readFile })
+        buildResFiles(realPath, content, { listFiles: listFilesAbs, readFile, readBinary: readFileBase64 })
           .then((map) => { if (!cancelled && map && Object.keys(map).length)
             setPreviewFiles((m) => ({ ...m, [realPath]: { sig: refsSig, map } })); })
           .catch(() => {});

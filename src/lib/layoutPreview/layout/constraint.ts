@@ -1,5 +1,5 @@
 import type { ContainerFn, LNode, PositionedBox } from "../types";
-import { resolveDimen } from "../values";
+import { resolveDimen, resolveVisibility } from "../values";
 import { tagName } from "../widgets";
 import { nodeMargins } from "./spacing";
 const idRef = (v: string | undefined): string | null => {
@@ -49,6 +49,7 @@ interface AxisCfg {
   biasAttr: string;
   chainAttr: string;
   guideHere: boolean[]; // true if a Guideline child defines THIS axis
+  wrap: boolean;        // true when this axis is wrap_content (no fixed far edge)
 }
 
 export const layoutConstraint: ContainerFn = (node, boxW, boxH, maxW, maxH, place, ctx) => {
@@ -121,7 +122,10 @@ export const layoutConstraint: ContainerFn = (node, boxW, boxH, maxW, maxH, plac
       if (st[i] === 1) { console.warn("[layoutConstraint] cycle at", children[i]?.id); return; } // resolving -> cycle break (use provisional pos[i]=0)
       st[i] = 1;
       const lead = firstRef(i, cfg.leadG);
-      const trail = firstRef(i, cfg.trailG);
+      let trail = firstRef(i, cfg.trailG);
+      // wrap axis with BOTH anchors: drop the far edge so it doesn't inflate the wrap extent.
+      // A trailing-ONLY child keeps its anchor and is bottom/end-aligned in solveAxis (deferred).
+      if (cfg.wrap && lead && trail && trail.target === "parent") trail = null;
       const lm = cfg.leadM[i];
       const tm = cfg.trailM[i];
       if (lead && trail) {
@@ -143,6 +147,12 @@ export const layoutConstraint: ContainerFn = (node, boxW, boxH, maxW, maxH, plac
       }
       st[i] = 2;
     }
+
+    // 0) Gone views: zero size, skip constraint solving entirely.
+    children.forEach((c, i) => {
+      if (resolveVisibility(c) !== "gone") return;
+      pos[i] = 0; size[i] = 0; st[i] = 2;
+    });
 
     // 1) Guidelines: fixed coordinate, zero size, in their defining axis only.
     children.forEach((_, i) => {
@@ -190,8 +200,31 @@ export const layoutConstraint: ContainerFn = (node, boxW, boxH, maxW, maxH, plac
       chain.forEach((k) => { pos[k] = cursor; cursor += size[k] + gap; st[k] = 2; processed[k] = true; });
     });
 
-    // 3) Everyone else.
-    children.forEach((_, i) => solveOne(i));
+    // 3) On a wrap axis, a child anchored ONLY to the parent's trailing edge (no leading
+    //    anchor) can't pin to a fixed far edge — defer it until the content extent is known.
+    const deferred = new Set<number>();
+    if (cfg.wrap) {
+      children.forEach((_, i) => {
+        if (st[i] === 2 || isGuide[i] || processed[i]) return;
+        const lead = firstRef(i, cfg.leadG);
+        const trail = firstRef(i, cfg.trailG);
+        if (!lead && trail && trail.target === "parent") deferred.add(i);
+      });
+    }
+
+    // 4) Everyone else.
+    children.forEach((_, i) => { if (!deferred.has(i)) solveOne(i); });
+
+    // 5) Bottom/end-align deferred children against the resolved content extent.
+    if (deferred.size) {
+      let ext = 0;
+      children.forEach((_, i) => { if (!deferred.has(i)) ext = Math.max(ext, pos[i] + size[i]); });
+      deferred.forEach((i) => {
+        const e = Math.max(ext, size[i] + cfg.trailM[i]);
+        pos[i] = Math.max(0, e - cfg.trailM[i] - size[i]);
+        st[i] = 2;
+      });
+    }
     return { pos, size };
   };
 
@@ -199,13 +232,13 @@ export const layoutConstraint: ContainerFn = (node, boxW, boxH, maxW, maxH, plac
     extent: W, nat: natW, mode: wMode, leadG: H_LEAD, trailG: H_TRAIL,
     leadM: m.map((x) => x.l), trailM: m.map((x) => x.r),
     biasAttr: "layout_constraintHorizontal_bias", chainAttr: "layout_constraintHorizontal_chainStyle",
-    guideHere: guideVertical,
+    guideHere: guideVertical, wrap: boxW == null,
   });
   const vr = solveAxis({
     extent: H, nat: natH, mode: hMode, leadG: V_LEAD, trailG: V_TRAIL,
     leadM: m.map((x) => x.t), trailM: m.map((x) => x.b),
     biasAttr: "layout_constraintVertical_bias", chainAttr: "layout_constraintVertical_chainStyle",
-    guideHere: guideVertical.map((g) => !g),
+    guideHere: guideVertical.map((g) => !g), wrap: boxH == null,
   });
 
   boxes.forEach((b, i) => { b.x = hr.pos[i]; b.w = hr.size[i]; b.y = vr.pos[i]; b.h = vr.size[i]; });

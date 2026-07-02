@@ -53,4 +53,24 @@ describe("shapeToCss", () => {
   it("returns null for non-shape XML", () => {
     expect(shapeToCss(`<vector android:viewportWidth="1" android:viewportHeight="1"/>`)).toBeNull();
   });
+
+  it("resolves @color/@dimen refs in solid/corners via the ResourceProvider", () => {
+    const res = {
+      string: () => null,
+      color: (n: string) => (n === "white" ? "#ffffff" : null),
+      dimen: (n: string) => (n === "dp_4" ? 4 : null),
+      drawable: () => null,
+    };
+    const css = shapeToCss(
+      `<shape><solid android:color="@color/white"/><corners android:radius="@dimen/dp_4"/></shape>`,
+      res,
+    )!;
+    expect(css.background).toBe("#ffffff");
+    expect(css.borderRadius).toBe("4px");
+  });
+
+  it("still honors literal colors when refs cannot be resolved", () => {
+    const css = shapeToCss(`<shape><solid android:color="#3366ff"/></shape>`)!;
+    expect(css.background).toBe("#3366ff");
+  });
 });

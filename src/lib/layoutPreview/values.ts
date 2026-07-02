@@ -1,4 +1,4 @@
-import type { Dimen, LayoutCtx, ResourceProvider } from "./types";
+import type { Dimen, LayoutCtx, LNode, ResourceProvider } from "./types";
 
 export function parseDimen(v: string | undefined, density: number, fontScale: number): Dimen {
   if (v == null || v === "") return { mode: "wrap", px: 0 };
@@ -83,6 +83,19 @@ export function resolveSp(v: string | undefined, res: ResourceProvider): number 
     return dp != null ? dp : DEFAULT;
   }
   return parseFloat(v) || DEFAULT;
+}
+
+// android:visibility resolution. parse.ts already merges tools:* over android:* so a
+// tools:visibility override lands in attrs.visibility. A data-binding @{…} / @={…} value is
+// design-time-unknown → treat as VISIBLE.
+export function resolveVisibility(node: LNode): "visible" | "invisible" | "gone" {
+  const v = node.attrs.visibility;
+  if (v == null) return "visible";
+  const s = v.trim();
+  if (/^@=?\{/.test(s)) return "visible";
+  if (s === "gone") return "gone";
+  if (s === "invisible") return "invisible";
+  return "visible";
 }
 
 export function resolveSize(d: Dimen, avail: number, content: number): number {
